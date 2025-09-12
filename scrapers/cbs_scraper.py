@@ -14,7 +14,8 @@ import os
 
 # Add parent directory to path to allow imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from convert_to_html import convert_json_to_html
+from utils.convert_to_html import convert_json_to_html
+
 
 def clean_html_content(html_content):
     """Clean HTML content by removing unwanted classes and elements."""

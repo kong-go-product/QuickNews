@@ -52,126 +52,31 @@ def convert_json_to_html(json_file, output_file):
         </div>
         """
 
+    # Read the CSS from the external file
+    css_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'styles.css')
+    try:
+        with open(css_file, 'r', encoding='utf-8') as f:
+            css_content = f.read()
+    except FileNotFoundError:
+        print(f"Warning: CSS file not found at {css_file}. Using default styles.")
+        css_content = """
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+            font-size: 16px;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        """
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-body {{
-    /* English-first stack with Chinese fallbacks */
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-    font-size: 16px;
-    margin: 0;
-    padding: 20px;  /* top, right, bottom, left */
-    background-color: #f5f5f5;
-}}
-.article-content[lang^="en"] {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-}}
-.article-content[lang^="zh"] {{
-    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-}}
-
-.article-content p {{
-    margin-top: 0;
-    padding-top: 0;
-}}
-
-.article-source {{
-    color: #888;
-    font-size: 0.75em;
-    margin: 2px 0 4px 0;
-    line-height: 1.2;
-    opacity: 0.7;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}}
-.articles-container {{
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 24px;
-    overflow: auto;
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-    padding: 0;
-    max-width: 100%;
-    max-height: 100%;
-}}
-
-.articles-container::after {{
-    content: "";
-    flex: 1;
-}}
-
-
-/* Hide scrollbar for Chrome, Safari and Opera */
-.articles-container::-webkit-scrollbar {{
-    display: none;
-}}
-
-.article {{
-    flex: 0 0 auto;
-    width: 330.5px;  
-    height: 450px;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-    padding: 0 0 0 0; /* right gutter; left gutter comes from inline style per column */
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}}
-.article-content {{
-    text-align: justify;
-    text-justify: inter-word;
-    hyphens: auto;
-    -webkit-hyphens: auto;
-    -ms-hyphens: auto;
-    -moz-hyphens: auto;
-    flex: 1;
-    overflow-y: auto;
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-    display: flex;
-    flex-direction: column;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    -webkit-hyphenate-limit-chars: 6 3 3;  /* min: 6, before: 3, after: 3 */
-    -ms-hyphenate-limit-chars: 6 3 3;
-    hyphenate-limit-chars: 6 3 3;
-    -webkit-hyphenate-limit-lines: 2;
-    -ms-hyphenate-limit-lines: 2;
-    hyphenate-limit-lines: 2;
-    -webkit-hyphenate-limit-zone: 10%;
-    hyphenate-limit-zone: 10%;
-    text-rendering: optimizeLegibility;
-    -webkit-font-feature-settings: "kern" 1;
-    font-feature-settings: "kern" 1;
-    -webkit-font-kerning: normal;
-    font-kerning: normal;
-}}
-
-
-.article-title {{
-    font-size: 19.1px;
-    line-height: 1.35;
-    font-weight: 700;
-    color: #222;
-    text-align: left;
-    background-color: #f5f5f5;
-    position: sticky;
-    padding: 0 0 0.5rem;
-    top: 0;
-    z-index: 10;
-    box-sizing: border-box;
-    letter-spacing: 0.1px;
-}}
-</style>
+    <style>
+    {css_content}
+    </style>
 </head>
 <body>
     <div class="articles-container">

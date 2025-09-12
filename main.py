@@ -1,20 +1,28 @@
 import subprocess
 import os
+import sys
 from bs4 import BeautifulSoup
+import os
+from datetime import datetime
+
 
 def run_scrapers():
     """Run all individual scraper scripts."""
     scrapers = [
-        'foxnews_scraper.py',
-        'cbs_scraper.py',
-        'npr_scraper.py'
+        'scrapers/foxnews_scraper.py',
+        'scrapers/cbs_scraper.py',
+        'scrapers/npr_scraper.py'
     ]
     
     print("Running scrapers...")
     for scraper in scrapers:
         try:
             print(f"Running {scraper}...")
-            subprocess.run(['python3', scraper], check=True)
+            # Use the same Python interpreter
+            subprocess.run([sys.executable, scraper], check=True, env={
+                **os.environ,
+                'PYTHONPATH': os.path.dirname(os.path.abspath(__file__))
+            })
         except subprocess.CalledProcessError as e:
             print(f"Error running {scraper}: {e}")
             continue
@@ -30,7 +38,7 @@ def combine_news_articles():
         'output/npr_news_articles.html'
     ]
     
-    with open('styles.css', 'r', encoding='utf-8') as f:
+    with open('static/styles.css', 'r', encoding='utf-8') as f:
         css_style = f.read()
 
     # Create a new BeautifulSoup object for the combined content
@@ -74,8 +82,11 @@ def combine_news_articles():
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
     
-    # Save the combined HTML to a file
-    output_file = 'output/combined_news.html'
+    # Get current date for filename
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    
+    # Save the combined HTML to a file with date in the name
+    output_file = f'QuickNews_{date_str}.html'
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(str(soup))
     

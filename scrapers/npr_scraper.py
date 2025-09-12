@@ -1,16 +1,19 @@
 import asyncio
 import json
 import os
+import sys
 import feedparser
 import ssl
 import pytz
 from bs4 import BeautifulSoup
 from readability import Document
-from convert_to_html import convert_json_to_html
-from bs4.element import Comment
 from datetime import datetime, timezone, timedelta
 import dateutil.parser
 import aiohttp
+
+# Add parent directory to path to allow imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.convert_to_html import convert_json_to_html
 
 def clean_html_content(html_content):
     """
