@@ -26,7 +26,7 @@ jobs:
 
       - name: Run script to generate HTML
         run: |
-          python your_script.py   # replace with your main script
+          python main.py   # replace with your main script
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
