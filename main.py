@@ -4,6 +4,7 @@ import sys
 from bs4 import BeautifulSoup
 import os
 from datetime import datetime
+import pytz
 
 
 def run_scrapers():
@@ -82,15 +83,56 @@ def combine_news_articles():
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
     
-    # Get current date for filename
-    date_str = datetime.now().strftime('%Y-%m-%d')
+    # Create output directory if it doesn't exist
+    output_dir = 'output'
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Get current date in Eastern Time for filename
+    eastern = pytz.timezone('US/Eastern')
+    date_str = datetime.now(eastern).strftime('%Y-%m-%d')
     
     # Save the combined HTML to a file with date in the name
-    output_file = f'QuickNews_{date_str}.html'
+    output_file = os.path.join(output_dir, f'QuickNews_{date_str}.html')
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(str(soup))
     
     print(f"\nCombined news articles have been saved to: {output_file}")
+    
+    # Create/update index.html with automatic redirect to the latest file
+    index_file = os.path.join(output_dir, 'index.html')
+    index_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>QuickNews</title>
+    <meta http-equiv="refresh" content="0; url=QuickNews_{date_str}.html">
+    <link rel="stylesheet" type="text/css" href="../static/styles.css">
+    <style>
+        .redirect-message {{
+            text-align: center;
+            margin-top: 50px;
+            font-size: 1.2em;
+        }}
+        .redirect-message a {{
+            color: #0066cc;
+            text-decoration: none;
+        }}
+        .redirect-message a:hover {{
+            text-decoration: underline;
+        }}
+    </style>
+</head>
+<body>
+    <div class="redirect-message">
+        <p>Redirecting to the latest news...<br>
+        <a href="QuickNews_{date_str}.html">Click here if you are not redirected automatically</a></p>
+    </div>
+</body>
+</html>"""
+    
+    with open(index_file, 'w', encoding='utf-8') as f:
+        f.write(index_content)
+    
+    print(f"Index file updated: {index_file}")
 
 if __name__ == "__main__":
     combine_news_articles()
