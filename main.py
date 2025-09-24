@@ -43,15 +43,20 @@ def combine_news_articles():
         css_style = f.read()
 
     # Create a new BeautifulSoup object for the combined content
+    # Get current date in Eastern Time for the title
+    eastern = pytz.timezone('US/Eastern')
+    date_str_title = datetime.now(eastern).strftime('%Y-%m-%d')
+    
     soup = BeautifulSoup(f'''<!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Combined News</title>
+        <title>QuickNews - {date_str_title}</title>
         <style>{css_style}</style>
     </head>
     <body>
+        <div class="timestamp">Updated: {datetime.now(eastern).strftime('%H:%M ET, %A, %b %d %Y')}</div>
         <div class="articles-container">
             <!-- Articles will be inserted here -->
         </div>

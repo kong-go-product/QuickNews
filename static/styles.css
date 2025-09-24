@@ -10,14 +10,13 @@ body {
 
 /* Timestamp */
 .timestamp {
-    color: #666;
-    font-size: 0.9em;
-    text-align: right;
-    margin-bottom: 15px;
-    padding: 5px 10px;
-    background-color: #f0f0f0;
-    border-radius: 4px;
-    font-family: monospace;
+    color: #888;
+    font-size: 0.85em;
+    text-align: left;
+    margin: 0 0 5px 0;
+    padding: 0;
+    line-height: 1.2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Articles container */
@@ -150,4 +149,3 @@ h1, h2, h3, h4, h5, h6, strong {
 .article strong:first-child {
     margin-top: 0;
 }
-
