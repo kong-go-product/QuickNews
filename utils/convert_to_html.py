@@ -116,5 +116,112 @@ def main():
         print(f"       python convert_to_html.py  # Uses defaults: {default_input} -> {default_output}")
         sys.exit(1)
 
+def convert_data_to_html(feed, output_file):
+    """
+    Convert feed data (as a dict) into HTML.
+    Similar to convert_json_to_html but takes feed data directly instead of a file.
+    """
+    items = feed.get('items', [])
+
+    # Build article HTML blocks using ONLY RSS 'content' (HTML), but include title
+    articles_html = ''
+    
+    # Determine if content is primarily English
+    is_english = any(lang in (feed.get('language') or '').lower() for lang in ['en', 'en-us', 'en-gb'])
+    
+    for item in items:
+        title = item.get('title', '')
+        body_html = item.get('content') or ''
+        # No soft separator between columns
+        article_style = ""
+
+        # Determine language for better hyphenation (fallback to feed-level lang)
+        feed_lang = feed.get('language') or feed.get('lang') or ('en' if is_english else '')
+        item_lang = item.get('language') or item.get('lang') or feed_lang or 'en'
+        lang_attr = f' lang="{item_lang}"'
+
+        # Title block with combined styles from .article-content .title
+        title_block = f'<div class="article-title">{title}</div>' if title else ''
+
+        # Get source information (more compact display)
+        source = item.get('source', feed.get('title', 'Unknown Source'))
+        source_html = f'<div class="article-source">{source}</div>' if source else ''
+
+        # Compose article column with title + source + raw RSS HTML content
+        articles_html += f"""
+        <div class=\"article\" style=\"{article_style}\">
+            <div class=\"article-content\"{lang_attr}>
+                {title_block}
+                {source_html}
+                {body_html}
+            </div>
+        </div>
+        """
+
+    # Use the same HTML template as convert_json_to_html
+    html_template = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{feed.get('title', 'News Feed')}</title>
+        <style>
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 100%;
+                margin: 0;
+                padding: 0;
+                background-color: #f5f5f5;
+            }}
+            .article {{
+                background: white;
+                margin-bottom: 1px;
+                padding: 0;
+                border-bottom: 1px solid #e0e0e0;
+            }}
+            .article-content {{
+                padding: 16px;
+            }}
+            .article-title {{
+                font-size: 1.25rem;
+                font-weight: 600;
+                margin-bottom: 8px;
+                line-height: 1.3;
+            }}
+            .article-source {{
+                font-size: 0.8rem;
+                color: #666;
+                margin-bottom: 8px;
+            }}
+            a {{
+                color: #1a73e8;
+                text-decoration: none;
+            }}
+            a:hover {{
+                text-decoration: underline;
+            }}
+            img, video, iframe {{
+                max-width: 100%;
+                height: auto;
+            }}
+        </style>
+    </head>
+    <body>
+        {articles_html}
+    </body>
+    </html>
+    """
+
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+    
+    # Write the HTML file
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(html_template.strip())
+
+
 if __name__ == "__main__":
     main()
