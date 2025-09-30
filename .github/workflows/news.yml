@@ -38,13 +38,24 @@ jobs:
       - name: Add .nojekyll
         run: touch ./newspaper/.nojekyll
 
-      - name: Commit & push new edition
+      - name: Deploy to gh-pages
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -f newspaper/*
-          git diff --cached --quiet || git commit -m "Add new QuickNews ${{ matrix.region }} edition"
+          # make sure branch exists
+          git fetch origin
+          if git show-ref --quiet refs/remotes/origin/gh-pages; then
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git reset --hard
+          fi
 
-          git pull --rebase origin gh-pages || true
+          # copy new edition into branch root
+          cp -r newspaper/* ./
+          touch .nojekyll
+
+          git add -A
+          git commit -m "Add new QuickNews ${{ matrix.region }} edition" || echo "No changes"
           git push origin gh-pages
