@@ -1,25 +1,28 @@
-name: Build and Deploy News
+name: Build and Deploy QuickNews
 
 on:
+  schedule:
+    - cron: "0 7 * * *"   # US morning
+    - cron: "0 15 * * *"  # JP morning
+  workflow_dispatch:
   push:
     branches:
       - main
-  schedule:
-    - cron: "0 7 * * *"   # US: daily 2 AM EST / 3 AM EDT (UTC)
-    - cron: "0 15 * * *"  # JP: daily 00:00 JST (UTC)
-  workflow_dispatch:
 
 jobs:
-  build-and-deploy-us:
+  publish:
     runs-on: ubuntu-latest
-    # Run on push/dispatch or when the US cron fires
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 7 * * *' }}
+    strategy:
+      matrix:
+        region: [us, jp]
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # ensure gh-pages history is available
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
@@ -29,62 +32,19 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run main.py (US)
-        run: python main.py us
+      - name: Run main.py for ${{ matrix.region }}
+        run: python main.py ${{ matrix.region }}
 
-      - name: Disable Jekyll
-        run: touch ./output/.nojekyll
-      
-      - name: Commit & push new files
+      - name: Add .nojekyll
+        run: touch output/.nojekyll
+
+      - name: Commit & push new edition
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      
-          # Add only new/changed files
-          git add -f ./newspaper/*
-      
-          # Commit if there are changes
-          git diff --cached --quiet || git commit -m "Add new QuickNews edition"
-      
-          # Push to gh-pages
-          git push origin HEAD:gh-pages
-      
 
-  build-and-deploy-jp:
-    runs-on: ubuntu-latest
-    # Run on push/dispatch or when the JP cron fires
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 15 * * *' }}
+          git add -f output/*
+          git diff --cached --quiet || git commit -m "Add new QuickNews ${{ matrix.region }} edition"
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      - name: Run main.py (JP)
-        run: python main.py jp
-
-      - name: Disable Jekyll
-        run: touch ./newspaper/.nojekyll
-      
-      - name: Commit & push new files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-      
-          # Add only new/changed files
-          git add -f ./newspaper/*
-      
-          # Commit if there are changes
-          git diff --cached --quiet || git commit -m "Add new QuickNews edition"
-      
-          # Push to gh-pages
-          git push origin HEAD:gh-pages
+          git pull --rebase origin gh-pages || true
+          git push origin gh-pages
