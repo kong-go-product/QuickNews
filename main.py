@@ -123,17 +123,13 @@ def combine_news_articles(region:str):
     # Use common 'newspaper' output directory (no region-specific subfolders)
     output_dir = 'newspaper'
     os.makedirs(output_dir, exist_ok=True)
-    
-    # Get current date in selected timezone for filename
-    date_str = datetime.now(tz).strftime('%Y-%m-%d')
 
     # Also update a stable alias without date for easy linking
     alias_file = os.path.join(output_dir, f'QuickNews_{region}.html')
     with open(alias_file, 'w', encoding='utf-8') as f:
         f.write(str(soup))
     
-    print(f"\nCombined news articles have been saved to: {output_file}")
-    print(f"Alias updated: {alias_file}")
+    print(f"\nNews articles saved to: {alias_file}")
     
     # Create/update index.html with a region selection list linking to stable alias files
     index_file = os.path.join(output_dir, 'index.html')
