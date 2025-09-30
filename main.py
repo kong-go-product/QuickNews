@@ -7,13 +7,22 @@ from datetime import datetime
 import pytz
 
 
-def run_scrapers():
+def run_scrapers(region:str):
     """Run all individual scraper scripts."""
-    scrapers = [
-        'scrapers/foxnews_scraper.py',
-        'scrapers/cbs_scraper.py',
-        'scrapers/npr_scraper.py'
-    ]
+    
+    if region == 'us':
+        scrapers = [
+            'scrapers/foxnews_scraper.py',
+            'scrapers/cbs_scraper.py',
+            'scrapers/npr_scraper.py'
+        ]
+    
+    elif region == 'jp':
+        scrapers = [
+            'scrapers/nhk_jp_scraper.py',
+            'scrapers/asahi_scraper.py',
+            'scrapers/kyodo_scraper.py'
+        ]
     
     print("Running scrapers...")
     for scraper in scrapers:
@@ -28,35 +37,58 @@ def run_scrapers():
             print(f"Error running {scraper}: {e}")
             continue
 
-def combine_news_articles():
+def combine_news_articles(region:str):
     # First, run all scrapers
-    run_scrapers()
+    run_scrapers(region)
     
     # List of HTML files to combine
-    html_files = [
-        'output/fox_news_articles.html',
-        'output/cbs_news_articles.html',
-        'output/npr_news_articles.html'
-    ]
+    if region == 'us':
+        html_files = [
+            'output/fox_news_articles.html',
+            'output/cbs_news_articles.html',
+            'output/npr_news_articles.html'
+        ]
+    elif region == 'jp':
+        html_files = [
+            'output/nhk_jp_news_articles.html',
+            'output/asahi_news_articles.html',
+            'output/kyodo_news_articles.html',
+        ]
     
     with open('static/styles.css', 'r', encoding='utf-8') as f:
         css_style = f.read()
 
     # Create a new BeautifulSoup object for the combined content
-    # Get current date in Eastern Time for the title
-    eastern = pytz.timezone('US/Eastern')
-    date_str_title = datetime.now(eastern).strftime('%Y-%m-%d')
+    # Choose timezone based on region for title and on-page timestamp
+    if region == 'us':
+        tz = pytz.timezone('US/Eastern')
+        tz_label = 'ET'
+    elif region == 'jp':
+        tz = pytz.timezone('Asia/Tokyo')
+        tz_label = 'JST'
+    else:
+        # Default to US settings
+        tz = pytz.timezone('US/Eastern')
+        tz_label = 'ET'
+    
+    date_str_title = datetime.now(tz).strftime('%Y-%m-%d')
+    # Localize timestamp label based on region
+    if region == 'us':
+        timestamp_prefix = 'Updated'
+    elif region == 'jp':
+        timestamp_prefix = '更新'
+    else:
+        timestamp_prefix = 'Updated'
     
     soup = BeautifulSoup(f'''<!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>QuickNews - {date_str_title}</title>
         <style>{css_style}</style>
     </head>
     <body>
-        <div class="timestamp">Updated: {datetime.now(eastern).strftime('%H:%M ET, %A, %b %d %Y')}</div>
+        <div class="timestamp">{timestamp_prefix}: {datetime.now(tz).strftime('%H:%M ' + tz_label + ', %A, %b %d %Y')}</div>
         <div class="articles-container">
             <!-- Articles will be inserted here -->
         </div>
@@ -88,48 +120,82 @@ def combine_news_articles():
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
     
-    # Create output directory if it doesn't exist
-    output_dir = 'output'
+    # Use common 'newspaper' output directory (no region-specific subfolders)
+    output_dir = 'newspaper'
     os.makedirs(output_dir, exist_ok=True)
     
-    # Get current date in Eastern Time for filename
-    eastern = pytz.timezone('US/Eastern')
-    date_str = datetime.now(eastern).strftime('%Y-%m-%d')
-    
-    # Save the combined HTML to a file with date in the name
-    output_file = os.path.join(output_dir, f'QuickNews_{date_str}.html')
-    with open(output_file, 'w', encoding='utf-8') as f:
+    # Get current date in selected timezone for filename
+    date_str = datetime.now(tz).strftime('%Y-%m-%d')
+
+    # Also update a stable alias without date for easy linking
+    alias_file = os.path.join(output_dir, f'QuickNews_{region}.html')
+    with open(alias_file, 'w', encoding='utf-8') as f:
         f.write(str(soup))
     
     print(f"\nCombined news articles have been saved to: {output_file}")
+    print(f"Alias updated: {alias_file}")
     
-    # Create/update index.html with automatic redirect to the latest file
+    # Create/update index.html with a region selection list linking to stable alias files
     index_file = os.path.join(output_dir, 'index.html')
     index_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <title>QuickNews</title>
-    <meta http-equiv="refresh" content="0; url=QuickNews_{date_str}.html">
     <link rel="stylesheet" type="text/css" href="../static/styles.css">
     <style>
-        .redirect-message {{
-            text-align: center;
-            margin-top: 50px;
-            font-size: 1.2em;
+        .region-list {{
+            max-width: 560px;
+            margin: 60px auto;
+            padding: 24px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }}
-        .redirect-message a {{
-            color: #0066cc;
+        .region-list h1 {{
+            margin: 0 0 16px 0;
+            font-size: 22px;
+        }}
+        .region-list p {{
+            margin: 0 0 20px 0;
+            color: #555;
+        }}
+        .region-list ul {{
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: 12px;
+        }}
+        .region-list a {{
+            display: block;
+            padding: 12px 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
             text-decoration: none;
+            color: #111827;
+            background: #f9fafb;
         }}
-        .redirect-message a:hover {{
-            text-decoration: underline;
+        .region-list a:hover {{
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }}
+        .note {{
+            margin-top: 14px;
+            font-size: 12px;
+            color: #6b7280;
         }}
     </style>
 </head>
 <body>
-    <div class="redirect-message">
-        <p>Redirecting to the latest news...<br>
-        <a href="QuickNews_{date_str}.html">Click here if you are not redirected automatically</a></p>
+    <div class="region-list">
+        <h1>QuickNews</h1>
+        <p>Select a region:</p>
+        <ul>
+            <li><a href="QuickNews_us.html">United States (US)</a></li>
+            <li><a href="QuickNews_jp.html">日本 (JP)</a></li>
+        </ul>
+        <div class="note">Each link points to the latest generated page for that region.</div>
     </div>
 </body>
 </html>"""
@@ -140,4 +206,7 @@ def combine_news_articles():
     print(f"Index file updated: {index_file}")
 
 if __name__ == "__main__":
-    combine_news_articles()
+    if len(sys.argv) > 1:
+        combine_news_articles(sys.argv[1])
+    else:
+        combine_news_articles('us')

@@ -158,21 +158,42 @@ def fetch_news():
     """Synchronous wrapper for the async function."""
     return asyncio.run(fetch_news_async())
 
-def save_to_file(data, filename_prefix='nhk_news'):
-    """Save the scraped data to a JSON file with timestamp."""
+def save_to_file(data, filename_prefix='nhk_jp_news'):
+    """Save the scraped data to a JSON file."""
     try:
         # Create output directory if it doesn't exist
         os.makedirs('output', exist_ok=True)
         
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'output/{filename_prefix}_{timestamp}.json'
+        # Generate filename without timestamp
+        json_filename = f'output/{filename_prefix}_articles.json'
+        html_filename = f'output/{filename_prefix}_articles.html'
         
-        # Save to file
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        print(f"Data saved to {filename}")
-        return filename
+        # Map incoming data (which uses 'articles') to the feed schema expected by convert_json_to_html ('items')
+        articles_data = []
+        for article in data.get('articles', []):
+            articles_data.append({
+                'title': article.get('title', ''),
+                'content': article.get('content', ''),
+                'source': article.get('source', 'NHKニュース'),
+                'url': article.get('url', ''),
+                'published': article.get('published', ''),
+                'language': article.get('language', 'ja')
+            })
+        
+        feed_data = {
+            'title': 'NHK News',
+            'link': 'https://www.nhk.or.jp/news/',
+            'description': 'Latest news from NHK (Japan Broadcasting Corporation)',
+            'language': 'ja',
+            'items': articles_data
+        }
+        
+        # Save JSON in expected schema then convert to HTML
+        with open(json_filename, 'w', encoding='utf-8') as f:
+            json.dump(feed_data, f, ensure_ascii=False, indent=2)
+        convert_json_to_html(json_filename, html_filename)
+        print(f"Data saved to {html_filename}")
+        return html_filename
     except Exception as e:
         print(f"Error saving to file: {e}")
         return None
@@ -186,4 +207,4 @@ if __name__ == "__main__":
     
     # Save to HTML file
     if 'error' not in result:
-        save_to_html(result, 'nhk_news')
+        save_to_file(result, 'nhk_jp_news')

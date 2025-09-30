@@ -17,7 +17,39 @@ from readability import Document
 
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.convert_to_html import convert_json_to_html
+from utils.convert_to_html import convert_json_to_html as base_convert_json_to_html
+
+def convert_json_to_html(json_file, output_file):
+    """
+    Local wrapper to remove the article <h1> from each item's HTML content to avoid
+    duplicate titles in rendering. Then delegates to the base converter.
+    """
+    try:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            feed = json.load(f)
+
+        items = feed.get('items', [])
+        for item in items:
+            body_html = item.get('content') or ''
+            if not body_html:
+                continue
+            soup = BeautifulSoup(body_html, 'html.parser')
+            # Remove the first <h1> (usually the page title) to prevent duplication
+            h1 = soup.find('h1')
+            if h1:
+                h1.decompose()
+            item['content'] = str(soup)
+
+        # Overwrite the JSON file with the updated content
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(feed, f, ensure_ascii=False, indent=2)
+
+        # Delegate to the base converter to build the HTML
+        return base_convert_json_to_html(json_file, output_file)
+    except Exception as e:
+        print(f"Error in local convert_json_to_html wrapper: {e}")
+        # Fallback to base converter without modifications
+        return base_convert_json_to_html(json_file, output_file)
 
 def clean_html_content(html_content):
     """
@@ -198,10 +230,21 @@ async def fetch_news_async():
                 # First, try to get the full content
                 content = await fetch_article_content(article['url'])
                 
-                # If no content was fetched, use the summary from the RSS feed
-                if not content or len(content.strip()) < 100:  # 100 chars minimum
-                    print(f"Using RSS summary for: {article['title']}")
-                    content = f"<p>{article.get('summary', 'No content available.')}</p>"
+                # If no content was fetched or it's too short, use a robust fallback
+                # Use text length of stripped HTML to judge emptiness/too short
+                from bs4 import BeautifulSoup as _BS
+                text_len = len(_BS(content or "", 'html.parser').get_text().strip())
+                if not content or text_len < 60:  # accept shorter articles; fallback if < 60 chars
+                    print(f"Using fallback for: {article['title']}")
+                    summary_text = (article.get('summary') or '').strip()
+                    if summary_text:
+                        content = f"<p>{summary_text}</p>"
+                    else:
+                        # Last-resort fallback: non-empty body with link to the source
+                        content = (
+                            f"<p>本文を取得できませんでした。</p>"
+                            f"<p><a href=\"{article['url']}\" target=\"_blank\" rel=\"noopener\">記事を読む</a></p>"
+                        )
                 
                 article['content'] = content
                 
@@ -235,10 +278,9 @@ def save_to_html(data, filename_prefix='asahi_news'):
         # Create output directory if it doesn't exist
         os.makedirs('output', exist_ok=True)
         
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        json_filename = f'output/{filename_prefix}_{timestamp}.json'
-        html_filename = f'output/{filename_prefix}_{timestamp}.html'
+        # Generate filename without timestamp
+        json_filename = f'output/{filename_prefix}_articles.json'
+        html_filename = f'output/{filename_prefix}_articles.html'
         
         # Prepare data in the format expected by convert_json_to_html
         articles_data = []

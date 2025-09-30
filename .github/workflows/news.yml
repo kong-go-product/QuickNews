@@ -5,12 +5,15 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 9 * * *"  # daily 5 PM CST
+    - cron: "0 7 * * *"   # US: daily 2 AM EST / 3 AM EDT (UTC)
+    - cron: "0 15 * * *"  # JP: daily 00:00 JST (UTC)
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build-and-deploy-us:
     runs-on: ubuntu-latest
+    # Run on push/dispatch or when the US cron fires
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 7 * * *' }}
 
     steps:
       - name: Checkout repo
@@ -26,15 +29,62 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run main.py
-        run: python main.py
+      - name: Run main.py (US)
+        run: python main.py us
 
       - name: Disable Jekyll
-        run: touch ./output/.nojekyll  # change to ./ if HTML in root
+        run: touch ./output/.nojekyll
+      
+      - name: Commit & push new files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+          # Add only new/changed files
+          git add newspaper/*
+      
+          # Commit if there are changes
+          git diff --cached --quiet || git commit -m "Add new QuickNews edition"
+      
+          # Push to gh-pages
+          git push origin HEAD:gh-pages
+      
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+  build-and-deploy-jp:
+    runs-on: ubuntu-latest
+    # Run on push/dispatch or when the JP cron fires
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 15 * * *' }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./output  # change to ./ if HTML in root
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run main.py (JP)
+        run: python main.py jp
+
+      - name: Disable Jekyll
+        run: touch ./newspaper/.nojekyll
+      
+      - name: Commit & push new files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+          # Add only new/changed files
+          git add newspaper/*
+      
+          # Commit if there are changes
+          git diff --cached --quiet || git commit -m "Add new QuickNews edition"
+      
+          # Push to gh-pages
+          git push origin HEAD:gh-pages

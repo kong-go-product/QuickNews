@@ -21,10 +21,9 @@ def save_to_html(data, filename_prefix='kyodo_news'):
         # Create output directory if it doesn't exist
         os.makedirs('output', exist_ok=True)
         
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        json_filename = f'output/{filename_prefix}_{timestamp}.json'
-        html_filename = f'output/{filename_prefix}_{timestamp}.html'
+        # Generate filename without timestamp
+        json_filename = f'output/{filename_prefix}_articles.json'
+        html_filename = f'output/{filename_prefix}_articles.html'
         
         # Prepare data in the format expected by convert_json_to_html
         articles_data = []
@@ -66,13 +65,30 @@ def clean_html_content(html_content):
     
     soup = BeautifulSoup(html_content, 'html.parser')
     
-    # Remove script and style elements
-    for script in soup(["script", "style", "iframe", "nav", "footer"]):
-        script.decompose()
+    # Remove script, style, navigation, and media elements
+    for element in soup(["script", "style", "iframe", "nav", "footer", "img", "picture", "figure", "video", "audio"]):
+        element.decompose()
     
     # Remove share and social media elements
     for div in soup.find_all("div", class_=lambda x: x and ('share' in x or 'sns' in x or 'related' in x or 'advertisement' in x.lower())):
         div.decompose()
+    
+    # Unwrap anchor/underline and common formatting wrappers (keep text only)
+    for tag in soup.find_all(["a", "u", "strong", "b", "em", "i", "span", "font"]):
+        tag.unwrap()
+
+    # Strip all attributes from remaining tags for cleaner HTML
+    for el in soup.find_all(True):
+        el.attrs = {}
+
+    # Remove empty elements (no text and no child tags)
+    removed = True
+    while removed:
+        removed = False
+        for el in list(soup.find_all(True)):
+            if not el.get_text(strip=True) and not el.find(True):
+                el.decompose()
+                removed = True
     
     return str(soup)
 
@@ -158,20 +174,41 @@ def fetch_news():
     return asyncio.run(fetch_news_async())
 
 def save_to_file(data, filename_prefix='kyodo_news'):
-    """Save the scraped data to a JSON file with timestamp."""
+    """Save the scraped data to a JSON file."""
     try:
         # Create output directory if it doesn't exist
         os.makedirs('output', exist_ok=True)
         
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'output/{filename_prefix}_{timestamp}.json'
-        
-        # Save to file
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        print(f"Data saved to {filename}")
-        return filename
+        # Generate filenames without timestamp
+        json_filename = f'output/{filename_prefix}_articles.json'
+        html_filename = f'output/{filename_prefix}_articles.html'
+
+        # Map 'articles' to the feed schema expected by convert_json_to_html ('items')
+        articles_data = []
+        for article in data.get('articles', []):
+            articles_data.append({
+                'title': article.get('title', ''),
+                'content': article.get('content', ''),
+                'source': article.get('source', '共同通信'),
+                'url': article.get('url', ''),
+                'published': article.get('published', ''),
+                'language': article.get('language', 'ja')
+            })
+
+        feed_data = {
+            'title': 'Kyodo News',
+            'link': 'https://www.kyodo.co.jp/',
+            'description': 'Latest news from Kyodo News',
+            'language': 'ja',
+            'items': articles_data
+        }
+
+        # Save JSON then convert to HTML
+        with open(json_filename, 'w', encoding='utf-8') as f:
+            json.dump(feed_data, f, indent=2, ensure_ascii=False)
+        convert_json_to_html(json_filename, html_filename)
+        print(f"Data saved to {html_filename}")
+        return html_filename
     except Exception as e:
         print(f"Error saving to file: {e}")
         return None

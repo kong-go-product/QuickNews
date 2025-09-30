@@ -31,6 +31,7 @@ ENV/
 
 # Output files
 output/
+newspaper/
 
 # Environment variables
 .env
