@@ -36,14 +36,14 @@ jobs:
         run: python main.py ${{ matrix.region }}
 
       - name: Add .nojekyll
-        run: touch output/.nojekyll
+        run: touch ./newspaper/.nojekyll
 
       - name: Commit & push new edition
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -f output/*
+          git add -f newspaper/*
           git diff --cached --quiet || git commit -m "Add new QuickNews ${{ matrix.region }} edition"
 
           git pull --rebase origin gh-pages || true
