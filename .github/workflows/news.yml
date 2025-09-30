@@ -41,7 +41,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
           # Add only new/changed files
-          git add newspaper/*
+          git add -f ./newspaper/*
       
           # Commit if there are changes
           git diff --cached --quiet || git commit -m "Add new QuickNews edition"
@@ -81,7 +81,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
           # Add only new/changed files
-          git add newspaper/*
+          git add -f ./newspaper/*
       
           # Commit if there are changes
           git diff --cached --quiet || git commit -m "Add new QuickNews edition"
