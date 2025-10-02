@@ -2,8 +2,8 @@ name: Build and Deploy QuickNews
 
 on:
   schedule:
-    - cron: "0 7 * * *"   # US morning
-    - cron: "0 15 * * *"  # JP morning
+    - cron: "0 7 * * *"   # US morning, 2AM EST (07:00 UTC)
+    - cron: "0 15 * * *"  # JP morning, 9AM JST (15:00 UTC)
   workflow_dispatch:
   push:
     branches:
@@ -18,32 +18,49 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0  # ensure gh-pages history is available
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      - name: Check schedule matches region
+        id: check
+        run: |
+          HOUR=$(date -u +%H)
+          MATCH=false
+
+          if [ "${{ matrix.region }}" = "us" ] && [ "$HOUR" -eq 7 ]; then
+            MATCH=true
+          elif [ "${{ matrix.region }}" = "jp" ] && [ "$HOUR" -eq 15 ]; then
+            MATCH=true
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "push" ]; then
+            MATCH=true
+          fi
+
+          echo "match=$MATCH" >> $GITHUB_OUTPUT
+
       - name: Run main.py for ${{ matrix.region }}
+        if: steps.check.outputs.match == 'true'
         run: python main.py ${{ matrix.region }}
 
       - name: Add .nojekyll
+        if: steps.check.outputs.match == 'true'
         run: touch ./newspaper/.nojekyll
 
       - name: Deploy to gh-pages
+        if: steps.check.outputs.match == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # make sure branch exists
           git fetch origin
           if git show-ref --quiet refs/remotes/origin/gh-pages; then
             git checkout gh-pages
@@ -52,8 +69,9 @@ jobs:
             git reset --hard
           fi
 
-          # copy new edition into branch root
-          cp -r newspaper/* ./
+          # create subfolder for each region
+          mkdir -p ${{ matrix.region }}
+          cp -r newspaper/* ./${{ matrix.region }}/
           touch .nojekyll
 
           git add -A
