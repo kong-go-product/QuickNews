@@ -9,9 +9,15 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write  # required to push to gh-pages
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: quicknews-${{ github.workflow }}-${{ matrix.region }}
+      cancel-in-progress: false
     strategy:
       matrix:
         region: [us, jp]
@@ -51,29 +57,10 @@ jobs:
         if: steps.check.outputs.match == 'true'
         run: python main.py ${{ matrix.region }}
 
-      - name: Add .nojekyll
+      - name: Deploy to GitHub Pages (peaceiris)
         if: steps.check.outputs.match == 'true'
-        run: touch ./newspaper/.nojekyll
-
-      - name: Deploy to gh-pages
-        if: steps.check.outputs.match == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git fetch origin
-          if git show-ref --quiet refs/remotes/origin/gh-pages; then
-            git checkout gh-pages
-          else
-            git checkout --orphan gh-pages
-            git reset --hard
-          fi
-
-          # create subfolder for each region
-          mkdir -p ${{ matrix.region }}
-          cp -r newspaper/* ./${{ matrix.region }}/
-          touch .nojekyll
-
-          git add -A
-          git commit -m "Add new QuickNews ${{ matrix.region }} edition" || echo "No changes"
-          git push origin gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./newspaper
