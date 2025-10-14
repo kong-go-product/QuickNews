@@ -19,9 +19,16 @@ def run_scrapers(region:str):
     
     elif region == 'jp':
         scrapers = [
-            'scrapers/nhk_jp_scraper.py',
+            'scrapers/mainichi_scraper.py',
             'scrapers/asahi_scraper.py',
             'scrapers/kyodo_scraper.py'
+        ]
+    
+    elif region == 'fr':
+        scrapers = [
+            'scrapers/euronews_scraper.py',
+            'scrapers/rfi_scraper.py',
+            'scrapers/twenty_minutes_scraper.py',
         ]
     
     print("Running scrapers...")
@@ -50,9 +57,15 @@ def combine_news_articles(region:str):
         ]
     elif region == 'jp':
         html_files = [
-            'output/nhk_jp_news_articles.html',
+            'output/mainichi_news_articles.html',
             'output/asahi_news_articles.html',
             'output/kyodo_news_articles.html',
+        ]
+    elif region == 'fr':
+        html_files = [
+            'output/euronews_utf8_articles.html',
+            'output/rfi_articles.html',
+            'output/20minutes_articles.html',
         ]
     
     with open('static/styles.css', 'r', encoding='utf-8') as f:
@@ -66,6 +79,9 @@ def combine_news_articles(region:str):
     elif region == 'jp':
         tz = pytz.timezone('Asia/Tokyo')
         tz_label = 'JST'
+    elif region == 'fr':
+        tz = pytz.timezone('Europe/Paris')
+        tz_label = 'CET'
     else:
         # Default to US settings
         tz = pytz.timezone('US/Eastern')
@@ -77,6 +93,8 @@ def combine_news_articles(region:str):
         timestamp_prefix = 'Updated'
     elif region == 'jp':
         timestamp_prefix = '更新'
+    elif region == 'fr':
+        timestamp_prefix = 'Mis à jour'
     else:
         timestamp_prefix = 'Updated'
     
@@ -84,6 +102,7 @@ def combine_news_articles(region:str):
     <html lang="en">
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>QuickNews - {date_str_title}</title>
         <style>{css_style}</style>
     </head>
@@ -137,6 +156,7 @@ def combine_news_articles(region:str):
 <html>
 <head>
     <title>QuickNews</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" type="text/css" href="../static/styles.css">
     <style>
         .region-list {{
@@ -190,6 +210,7 @@ def combine_news_articles(region:str):
         <ul>
             <li><a href="QuickNews_us.html">United States (US)</a></li>
             <li><a href="QuickNews_jp.html">日本 (JP)</a></li>
+            <li><a href="QuickNews_fr.html">France (FR)</a></li>
         </ul>
         <div class="note">Each link points to the latest generated page for that region.</div>
     </div>
