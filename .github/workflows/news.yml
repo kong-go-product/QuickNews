@@ -2,25 +2,20 @@ name: Build and Deploy QuickNews
 
 on:
   schedule:
-    - cron: "0 7 * * *"   # US morning, 2AM EST (07:00 UTC)
-    - cron: "0 15 * * *"  # JP morning, 9AM JST (15:00 UTC)
+    - cron: "0 7 * * *"   # US morning, 2AM US/Eastern -> 07:00 UTC
+    - cron: "0 15 * * *"  # JP morning, 9AM Asia/Tokyo -> 15:00 UTC
+    - cron: "0 0 * * *"   # FR morning, 1AM Europe/Paris (CET)
   workflow_dispatch:
   push:
     branches:
       - main
 
-permissions:
-  contents: write  # required to push to gh-pages
-
 jobs:
   publish:
     runs-on: ubuntu-latest
-    concurrency:
-      group: quicknews-${{ github.workflow }}-${{ matrix.region }}
-      cancel-in-progress: false
     strategy:
       matrix:
-        region: [us, jp]
+        region: [us, jp, fr]
 
     steps:
       - name: Checkout repo
@@ -40,12 +35,17 @@ jobs:
       - name: Check schedule matches region
         id: check
         run: |
-          HOUR=$(date -u +%H)
           MATCH=false
 
-          if [ "${{ matrix.region }}" = "us" ] && [ "$HOUR" -eq 7 ]; then
+          US_HOUR=$(TZ=US/Eastern date +%H)
+          JP_HOUR=$(TZ=Asia/Tokyo date +%H)
+          FR_HOUR=$(TZ=Europe/Paris date +%H)
+
+          if [ "${{ matrix.region }}" = "us" ] && [ "$US_HOUR" -eq 02 ]; then
             MATCH=true
-          elif [ "${{ matrix.region }}" = "jp" ] && [ "$HOUR" -eq 15 ]; then
+          elif [ "${{ matrix.region }}" = "jp" ] && [ "$JP_HOUR" -eq 09 ]; then
+            MATCH=true
+          elif [ "${{ matrix.region }}" = "fr" ] && [ "$FR_HOUR" -eq 01 ]; then
             MATCH=true
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "push" ]; then
             MATCH=true
@@ -57,10 +57,29 @@ jobs:
         if: steps.check.outputs.match == 'true'
         run: python main.py ${{ matrix.region }}
 
-      - name: Deploy to GitHub Pages (peaceiris)
+      - name: Add .nojekyll
         if: steps.check.outputs.match == 'true'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./newspaper
+        run: touch ./newspaper/.nojekyll
+
+      - name: Deploy to gh-pages
+        if: steps.check.outputs.match == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin
+          if git show-ref --quiet refs/remotes/origin/gh-pages; then
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git reset --hard
+          fi
+
+          # create subfolder for each region
+          mkdir -p ${{ matrix.region }}
+          cp newspaper/QuickNews_${{ matrix.region }}.html ./${{ matrix.region }}/
+          touch .nojekyll
+
+          git add ${{ matrix.region }}/
+          git commit -m "Add new QuickNews ${{ matrix.region }} edition" || echo "No changes"
+          git push origin gh-pages
