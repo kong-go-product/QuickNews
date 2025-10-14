@@ -75,11 +75,9 @@ jobs:
             git reset --hard
           fi
 
-          # create subfolder for each region
-          mkdir -p ${{ matrix.region }}
-          cp newspaper/QuickNews_${{ matrix.region }}.html ./${{ matrix.region }}/
+          cp newspaper/QuickNews_${{ matrix.region }}.html ./QuickNews_${{ matrix.region }}.html
           touch .nojekyll
 
-          git add ${{ matrix.region }}/
+          git add QuickNews_${{ matrix.region }}.html
           git commit -m "Add new QuickNews ${{ matrix.region }} edition" || echo "No changes"
           git push origin gh-pages
