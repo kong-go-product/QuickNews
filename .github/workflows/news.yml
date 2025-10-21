@@ -18,6 +18,13 @@ jobs:
         region: [us, jp, fr]
 
     steps:
+      - name: Debug timezone
+        run: |
+          date
+          TZ=US/Eastern date
+          TZ=Asia/Tokyo date
+          TZ=Europe/Paris date
+
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
