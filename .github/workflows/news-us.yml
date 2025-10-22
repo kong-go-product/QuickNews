@@ -1,0 +1,54 @@
+name: Build and Deploy QuickNews (US)
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC (US edition)
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish-us:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run main.py (us)
+        run: python main.py us
+
+      - name: Add .nojekyll
+        run: touch ./newspaper/.nojekyll
+
+      - name: Deploy to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin
+          if git show-ref --quiet refs/remotes/origin/gh-pages; then
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git reset --hard
+          fi
+
+          cp newspaper/QuickNews_us.html ./QuickNews_us.html
+          touch .nojekyll
+
+          git add QuickNews_us.html
+          git commit -m "Add new QuickNews us edition" || echo "No changes"
+          git push origin gh-pages

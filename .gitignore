@@ -45,3 +45,6 @@ newspaper/
 # Local development
 *.db
 *.sqlite3
+
+# Local-only workflows (do not push legacy combined workflow)
+.github/workflows/news.yml
