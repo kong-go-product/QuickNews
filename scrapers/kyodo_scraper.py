@@ -10,6 +10,8 @@ from readability import Document
 from datetime import datetime, timezone, timedelta
 import dateutil.parser
 import aiohttp
+import random
+import asyncio as _asyncio
 
 # Add parent directory to path to allow imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -131,21 +133,43 @@ async def fetch_articles_from_rss():
 async def fetch_article_content(url):
     """Fetch and extract article content using Readability."""
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7'
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, ssl=False) as response:
-                html = await response.text()
+        # Rotate realistic UAs to reduce blocking
+        uas = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0',
+        ]
+        timeout = aiohttp.ClientTimeout(total=20)
+
+        # up to 3 attempts, backoff if empty or error
+        for attempt in range(3):
+            headers = {
+                'User-Agent': random.choice(uas),
+                'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7'
+            }
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(url, headers=headers, ssl=False) as response:
+                        if response.status >= 400:
+                            await _asyncio.sleep(0.4 * (attempt + 1))
+                            continue
+                        html = await response.text()
                 doc = Document(html)
-                content = doc.summary()
+                content = doc.summary() or ''
                 cleaned_content = clean_html_content(content)
-                return cleaned_content
+                # consider non-trivial when text length >= 60
+                text_len = len(BeautifulSoup(cleaned_content, 'html.parser').get_text().strip())
+                if text_len >= 60:
+                    return cleaned_content
+            except Exception:
+                # wait and retry
+                await _asyncio.sleep(0.4 * (attempt + 1))
+                continue
+        # if all retries failed or trivial, return empty string
+        return ""
     except Exception as e:
         print(f"Error fetching Kyodo article content: {e}")
-        return None
+        return ""
 
 async def fetch_news_async():
     """Main async function to fetch Kyodo news."""
@@ -217,8 +241,12 @@ if __name__ == "__main__":
     # Run the scraper
     result = asyncio.run(fetch_news_async())
     
-    # Print to console
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    # Print concise summary to console
+    try:
+        count = len((result or {}).get('articles', []))
+        print(f"Kyodo: fetched {count} articles.")
+    except Exception:
+        print("Kyodo: finished (no summary available).")
     
     # Save to HTML file
     if 'error' not in result:

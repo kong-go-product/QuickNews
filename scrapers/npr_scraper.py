@@ -259,4 +259,8 @@ def fetch_news():
 # Run script
 if __name__ == "__main__":
     result = asyncio.run(fetch_news_async())
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    try:
+        items = (result or {}).get('items') or (result or {}).get('articles') or []
+        print(f"NPR: fetched {len(items)} items.")
+    except Exception:
+        print("NPR: finished (no summary available).")

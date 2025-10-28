@@ -221,4 +221,8 @@ async def fetch_news():
 if __name__ == "__main__":
     import aiohttp
     result = asyncio.run(fetch_news())
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    try:
+        items = (result or {}).get('items') or (result or {}).get('articles') or []
+        print(f"CBS: fetched {len(items)} items.")
+    except Exception:
+        print("CBS: finished (no summary available).")

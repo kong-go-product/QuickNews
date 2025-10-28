@@ -319,8 +319,12 @@ if __name__ == "__main__":
     # Run the scraper
     result = asyncio.run(fetch_news_async())
     
-    # Print to console
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    # Print concise summary to console
+    try:
+        count = len((result or {}).get('articles', []))
+        print(f"Asahi: fetched {count} articles.")
+    except Exception:
+        print("Asahi: finished (no summary available).")
     
     # Save to HTML file
     if 'error' not in result:

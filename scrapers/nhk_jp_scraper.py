@@ -11,6 +11,11 @@ from datetime import datetime, timezone, timedelta
 import dateutil.parser
 import aiohttp
 
+# Standard library
+import json as _json
+import random
+import asyncio as _asyncio
+
 # Add parent directory to path to allow imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.convert_to_html import convert_json_to_html, convert_data_to_html
@@ -70,6 +75,79 @@ def clean_html_content(html_content):
     
     return str(soup)
 
+def _extract_from_json_ld(html: str) -> str | None:
+    """Try to extract articleBody from JSON-LD structures if present."""
+    try:
+        soup = BeautifulSoup(html, 'html.parser')
+        for tag in soup.find_all('script', type='application/ld+json'):
+            try:
+                data = _json.loads(tag.string or '')
+            except Exception:
+                continue
+            # JSON-LD may be an object or a list
+            candidates = data if isinstance(data, list) else [data]
+            for item in candidates:
+                if not isinstance(item, dict):
+                    continue
+                typ = item.get('@type') or item.get('type')
+                if isinstance(typ, list):
+                    typ = next((t for t in typ if isinstance(t, str)), None)
+                if typ and ('Article' in str(typ) or 'NewsArticle' in str(typ)):
+                    body = item.get('articleBody') or item.get('description')
+                    if body and isinstance(body, str) and len(body.strip()) > 60:
+                        # Wrap plain text paragraphs in <p>
+                        paragraphs = [f"<p>{p.strip()}</p>" for p in body.split('\n') if p.strip()]
+                        return '\n'.join(paragraphs) if paragraphs else f"<p>{body}</p>"
+    except Exception:
+        pass
+    return None
+
+def _extract_from_selectors(html: str) -> str | None:
+    """Try common NHK article selectors as a fallback."""
+    soup = BeautifulSoup(html, 'html.parser')
+    # Known/likely containers for main body; keep broad but safe
+    selector_candidates = [
+        '#news_textbody',
+        'div#news_textbody',
+        'article .content',
+        'article .article-body',
+        'div.content--detail-body',
+        'div.module--content',
+        'main .content',
+        'main article',
+    ]
+    for sel in selector_candidates:
+        node = soup.select_one(sel)
+        if node:
+            # Collect paragraphs
+            ps = node.find_all(['p', 'li'])
+            text_parts = []
+            for p in ps:
+                t = p.get_text(strip=True)
+                if t and ('NHK' not in t and 'All rights reserved' not in t):
+                    text_parts.append(f"<p>{t}</p>")
+            content = '\n'.join(text_parts)
+            if len(BeautifulSoup(content, 'html.parser').get_text().strip()) > 80:
+                return content
+    # As last resort, use all paragraphs on page (risky but better than boilerplate)
+    ps = soup.find_all('p')
+    text_parts = [f"<p>{p.get_text(strip=True)}</p>" for p in ps if p.get_text(strip=True)]
+    content = '\n'.join(text_parts)
+    if len(BeautifulSoup(content, 'html.parser').get_text().strip()) > 120:
+        return content
+    return None
+
+def _is_trivial_content(html: str) -> bool:
+    if not html:
+        return True
+    txt = BeautifulSoup(html, 'html.parser').get_text(separator=' ').strip()
+    if len(txt) < 80:
+        return True
+    # Detect common NHK copyright-only boilerplate
+    if 'Copyright NHK' in txt or '許可なく転載することを禁じます' in txt:
+        return True
+    return False
+
 # RSS feed for NHK (Japanese)
 RSS_FEED = "https://www.nhk.or.jp/rss/news/cat0.xml"
 
@@ -103,23 +181,66 @@ async def fetch_articles_from_rss():
     return articles
 
 async def fetch_article_content(url):
-    """Fetch and extract article content using Readability."""
+    """Fetch and extract article content using a robust multi-step strategy."""
     try:
+        # Rotate among a few realistic mobile/desktop UAs
+        uas = [
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+        ]
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'User-Agent': random.choice(uas),
             'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
             'Referer': 'https://www.nhk.or.jp/',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br'
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
         }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, ssl=False) as response:
-                html = await response.text()
+
+        timeout = aiohttp.ClientTimeout(total=20)
+        # Simple retry logic, try normal and AMP variants
+        for attempt in range(3):
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    html = None
+                    for target_url in (url, f"{url}?amp=1"):
+                        async with session.get(target_url, headers=headers, ssl=False) as response:
+                            if response.status == 403:
+                                # Likely blocked; change UA and retry this attempt once
+                                headers['User-Agent'] = random.choice(uas)
+                                continue
+                            if response.status >= 400:
+                                continue
+                            html = await response.text()
+                            if html:
+                                break
+                    if not html:
+                        await _asyncio.sleep(0.5 * (attempt + 1))
+                        continue
+
+                # 1) Try Readability first
                 doc = Document(html)
-                content = doc.summary()
-                cleaned_content = clean_html_content(content)
-                return cleaned_content
+                content = doc.summary() or ''
+                content = clean_html_content(content)
+                if not _is_trivial_content(content):
+                    return content
+
+                # 2) JSON-LD articleBody
+                ld = _extract_from_json_ld(html)
+                if ld and not _is_trivial_content(ld):
+                    return clean_html_content(ld)
+
+                # 3) Selector-based extraction
+                sel = _extract_from_selectors(html)
+                if sel and not _is_trivial_content(sel):
+                    return clean_html_content(sel)
+
+            except Exception:
+                # Backoff and retry
+                await _asyncio.sleep(0.5 * (attempt + 1))
+
+        return None
     except Exception as e:
         print(f"Error fetching NHK article content: {e}")
         return None
