@@ -4,9 +4,6 @@ on:
   schedule:
     - cron: "0 15 * * *"  # 15:00 UTC (JP edition)
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   publish-jp:
